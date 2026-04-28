@@ -1,4 +1,4 @@
-import type { DiffResponse, PreprocessOptions } from "@/lib/types";
+import type { DiffResponse, PreprocessOptions, ReportListItem } from "@/lib/types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
@@ -7,6 +7,8 @@ type SubmitTextDiffArgs = {
   ocr: string;
   referenceLabel: string;
   ocrLabel: string;
+  referenceReportName: string;
+  ocrReportName: string;
   options: PreprocessOptions;
 };
 
@@ -31,6 +33,8 @@ export async function submitTextDiff(args: SubmitTextDiffArgs): Promise<DiffResp
       ocr: args.ocr,
       reference_label: args.referenceLabel,
       ocr_label: args.ocrLabel,
+      reference_report_name: args.referenceReportName,
+      ocr_report_name: args.ocrReportName,
       preprocess_options: args.options,
     }),
   });
@@ -63,4 +67,13 @@ async function parseResponse(response: Response): Promise<DiffResponse> {
     throw new Error(message);
   }
   return payload as DiffResponse;
+}
+
+export async function fetchReportList(): Promise<ReportListItem[]> {
+  const response = await fetch(`${API_BASE_URL}/api/reports`);
+  if (!response.ok) {
+    throw new Error("获取报告列表失败。");
+  }
+  const data = (await response.json()) as { reports: ReportListItem[] };
+  return data.reports;
 }

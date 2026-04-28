@@ -4,6 +4,7 @@ export type PreprocessOptions = {
   normalize_width: boolean;
   normalize_punctuation: boolean;
   case_sensitive: boolean;
+  diff_mode: "text_only" | "text_and_format";
 };
 
 export type DiffStats = {
@@ -20,4 +21,10 @@ export type DiffResponse = {
   ocr_text: string;
   stats: DiffStats;
   report_url: string;
+};
+
+export type ReportListItem = {
+  filename: string;
+  url: string;
+  created_at: string;
 };
