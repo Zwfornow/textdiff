@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>{% block title %}文本对比报告{% endblock %}</title>
+    <style>
+      :root {
+        --bg: #f7f4ee;
+        --panel: #fffdf8;
+        --border: #d8ccb8;
+        --text: #2d241b;
+        --muted: #6c5e50;
+        --delete: #f38989;
+        --insert: #50c0fc;
+        --replace: #fcda42;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(184, 157, 121, 0.18), transparent 30%),
+          linear-gradient(180deg, #f5efe4 0%, var(--bg) 100%);
+      }
+      .container { max-width: 1400px; margin: 0 auto; }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 20px;
+        box-shadow: 0 12px 30px rgba(84, 63, 38, 0.08);
+      }
+      h1, h2 { margin-top: 0; }
+      .meta { color: var(--muted); margin-bottom: 18px; }
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        margin: 20px 0 24px;
+      }
+      .card {
+        padding: 14px;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.7);
+      }
+      .label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+      .value { font-size: 28px; font-weight: 700; }
+      .legend { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+      .legend span { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); }
+      .delete { background-color: var(--delete); text-decoration: line-through;}
+      .insert { background-color: var(--insert); }
+      .replace { background-color: var(--replace); }
+      table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+      th, td { border: 1px solid var(--border); padding: 10px; vertical-align: top; }
+      th { background: #efe5d5; text-align: left; }
+      .print-pdf-btn {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 8px 20px;
+        border: none;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #b2612d, #8d4414);
+        color: #fff;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        z-index: 100;
+        box-shadow: 0 4px 16px rgba(141, 68, 20, 0.3);
+        font-family: inherit;
+      }
+      .print-pdf-btn:hover { opacity: 0.88; }
+      @media print {
+        .print-pdf-btn { display: none !important; }
+        body { background: white; padding: 12px; }
+        .panel { box-shadow: none; }
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
+      }
+      {% block extra_css %}{% endblock %}
+    </style>
+  </head>
+  <body>
+    <button class="print-pdf-btn" onclick="window.print()">⬇ 导出 PDF</button>
+    <div class="container">
+      <div class="panel">
+        <h1>{% block heading %}文本对比报告{% endblock %}</h1>
+        <div class="meta">
+          参考文本: {{ ref_label }}<br />对比文本: {{ ocr_label }}
+        </div>
+        <div class="summary">
+          <div class="card">
+            <span class="label">准确率</span
+            ><span class="value">{{ accuracy }}</span>
+          </div>
+          <div class="card">
+            <span class="label">参考文本总字数</span
+            ><span class="value">{{ reference_length }}</span>
+          </div>
+          <div class="card">
+            <span class="label">错误字符数</span
+            ><span class="value">{{ error_count }}</span>
+          </div>
+          <div class="card">
+            <span class="label">缺字 / 多字 / 错字</span
+            ><span class="value"
+              >{{ delete_count }} / {{ insert_count }} / {{ replace_count
+              }}</span
+            >
+          </div>
+        </div>
+        <div class="legend">
+          <span class="delete">缺字</span>
+          <span class="insert">多字</span>
+          <span class="replace">错字</span>
+        </div>
+        {% block main_content %}{% endblock %}
+      </div>
+    </div>
+  </body>
+</html>

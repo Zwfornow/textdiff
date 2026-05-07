@@ -34,9 +34,10 @@ a {
 }
 
 .page-shell {
-  width: min(1200px, calc(100vw - 32px));
+  width: calc(100vw - 48px);
+  max-width: 100%;
   margin: 0 auto;
-  padding: 48px 0 72px;
+  padding: 48px 24px 72px;
 }
 
 .hero {
@@ -332,25 +333,30 @@ a {
   box-shadow: 0 6px 18px rgba(94, 59, 16, 0.12);
 }
 
-/* ── 侧边栏切换按钮（页面右上角） ── */
+.hero-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 4px;
+}
+
+/* ── 侧边栏切换按钮（hero 右侧，随页面滚动） ── */
 .sidebar-toggle {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  z-index: 200;
+  flex-shrink: 0;
+  align-self: center;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   border: 1px solid rgba(138, 84, 34, 0.22);
   border-radius: 999px;
   background: rgba(255, 252, 245, 0.92);
-  backdrop-filter: blur(10px);
   color: var(--accent-strong);
   cursor: pointer;
   font: inherit;
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 700;
-  padding: 8px 16px;
+  padding: 12px 24px;
   box-shadow: 0 4px 16px rgba(70, 44, 16, 0.1);
   transition: background 0.15s;
 }
@@ -551,27 +557,31 @@ a {
 .line-numbers {
   flex-shrink: 0;
   width: 44px;
-  padding: 16px 8px;
-  overflow-y: auto;
-  scrollbar-width: none;
+  /* padding 必须与 .lined-textarea 的 padding-top/bottom 一致，确保首行对齐 */
+  padding: 16px 4px 16px 0;
+  overflow: hidden;
   border-right: 1px solid rgba(121, 98, 69, 0.12);
   background: rgba(245, 237, 224, 0.7);
   user-select: none;
   text-align: right;
-  font-size: 12px;
-  line-height: 1.7;
   color: rgba(91, 73, 56, 0.45);
   font-family: "SF Mono", "Consolas", monospace;
 }
 
+.line-numbers-inner {
+  will-change: transform;
+}
+
 .line-num-item {
-  /* 高度必须与 .lined-textarea 的 font-size(16px) × line-height(1.7) 完全一致 */
-  height: calc(16px * 1.7);
-  line-height: calc(16px * 1.7);
+  /* 高度通过 style 属性动态设置：普通行 = 27.2px，引用块 = 行数 × 27.2px */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-size: 12px;
   cursor: pointer;
   padding-right: 4px;
   border-radius: 3px;
-  transition: background 0.1s;
+  transition: background 0.1s, color 0.1s;
 }
 
 .line-num-item:hover {
@@ -579,13 +589,32 @@ a {
 }
 
 .line-num-active {
-  background: rgba(255, 215, 50, 0.55);
-  color: rgba(80, 58, 28, 0.95);
+  background: rgba(255, 213, 0, 0.5);
+  color: rgba(80, 55, 10, 0.95);
   font-weight: 700;
 }
 
-.lined-textarea {
+.lined-textarea-area {
   flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.line-highlight-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: rgba(255, 230, 100, 0.28);
+  pointer-events: none;
+  z-index: 1;
+  border-radius: 2px;
+}
+
+.lined-textarea {
+  position: relative;
+  z-index: 2;
+  width: 100%;
   resize: none;
   height: 100%;
   border: 0;
@@ -596,7 +625,11 @@ a {
   line-height: 1.7;
   background: transparent;
   outline: none;
+  /* 禁止 textarea 内部换行：确保每物理行 = 一个视觉行 = 一个块编号，滚动同步才正确 */
+  white-space: pre;
+  overflow: auto;
   overflow-y: auto;
+  overflow-x: auto;
 }
 
 /* ── 对比模式选择 ── */
@@ -636,8 +669,8 @@ a {
 
 @media (max-width: 900px) {
   .page-shell {
-    width: min(100vw - 20px, 100%);
-    padding: 24px 0 48px;
+    width: 100%;
+    padding: 24px 16px 48px;
   }
 
   .workspace-card,
@@ -657,8 +690,6 @@ a {
   }
 
   .sidebar-toggle {
-    top: 12px;
-    right: 12px;
     font-size: 12px;
     padding: 6px 12px;
   }

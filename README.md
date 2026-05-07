@@ -1,5 +1,17 @@
 # OCR Markdown 文本比对工具
 
+当前仓库已经开始从“单文件脚本”演进到“可部署的 Web 工具”。
+
+目前已经完成的第一阶段实现包括：
+
+- 把核心 diff 逻辑下沉到 `backend/core`，供 CLI 和后续 Web API 共用。
+- 新增 FastAPI 后端，支持“直接输入文本”和“上传文件”两种对比模式。
+- 成功对比后会生成 HTML 报告，并通过 `/reports/...` 提供访问。
+- 新增最小可用的 Next.js 前端，支持文本输入、文件上传、结果统计和 HTML 报告预览。
+- 保留原始 [textdiff_ocr.py](textdiff_ocr.py) 命令行入口，避免破坏现有使用方式。
+
+后续仍将继续补充更完整的 Next.js 页面拆分和 Nginx 部署配置。
+
 这个项目提供了一个面向 OCR 结果校验的 Python 脚本 [textdiff_ocr.py](textdiff_ocr.py)。
 
 它解决的核心问题是：
@@ -47,6 +59,17 @@
 
 - Python 3.10+，推荐使用项目中的虚拟环境。
 - 仅依赖 Python 标准库，不需要额外安装第三方包。
+
+如果你要运行当前已经开始实现的 Web 后端，还需要这些 Python 依赖：
+
+- fastapi
+- uvicorn
+- python-multipart
+- httpx
+- pytest
+
+前端已经采用 Next.js，因此本地开发需要较新的 Node.js 运行环境。
+建议直接使用 Node.js 20+，并确保终端已经正确加载 nvm 或其他版本管理器。
 
 如果你要重新创建环境，可以在项目目录下执行：
 
@@ -218,9 +241,127 @@ python textdiff_ocr.py right_mac.md right_my4.md -o reports/right_diff_report4.h
 `--no-normalize-punctuation`
 
 - 关闭常见括号和标点统一。
-- 适合你想保留中英文标点差异时使用。
 
-## 9. 复现步骤
+## 9. Web 后端启动
+
+### 9.1 安装后端依赖
+
+```bash
+source .venv/bin/activate
+pip install -r backend/requirements.txt
+```
+
+### 9.2 启动 FastAPI
+
+```bash
+python -m backend.main
+```
+
+默认启动后可访问：
+
+- 健康检查：`http://localhost:8000/api/health`
+- 报告目录：`http://localhost:8000/reports/...`
+- OpenAPI 文档：`http://localhost:8000/docs`
+
+### 9.3 接口能力
+
+当前后端已经支持：
+
+- `GET /api/health`：健康检查。
+- `POST /api/diff`：文本对比和文件上传对比。
+
+详细字段说明见 [docs/API.md](docs/API.md)。
+
+## 10. 自动化测试
+
+当前已经新增最小回归测试，覆盖：
+
+- 核心 diff 服务统计结果。
+- 文本输入接口。
+- 文件上传接口。
+- 报告静态访问。
+
+执行方式：
+
+```bash
+source .venv/bin/activate
+pytest backend/tests
+```
+
+## 11. 前端启动
+
+### 11.1 安装前端依赖
+
+```bash
+cd frontend
+source /Users/zw/.nvm/nvm.sh
+nvm use 20.15.0
+npm install
+```
+
+### 11.2 配置前端环境变量
+
+```bash
+cp frontend/.env.local.example frontend/.env.local
+```
+
+默认会指向：
+
+- `NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000`
+
+如果你的后端不是跑在这个地址，需要按实际情况修改。
+
+### 11.3 启动 Next.js
+
+```bash
+cd frontend
+source /Users/zw/.nvm/nvm.sh
+nvm use 20.15.0
+npm run dev
+```
+
+启动后访问：
+
+- 前端页面：`http://localhost:3000`
+
+### 11.4 当前前端能力
+
+当前最小版本已经支持：
+
+- 文本输入模式。
+- 文件上传模式。
+- 预处理选项切换。
+- 对比结果统计卡片。
+- 后端 HTML 报告 iframe 预览。
+- 新窗口打开完整报告。
+
+## 12. 当前目录演进
+
+除了原来的样例和脚本，现在还新增了这些目录：
+
+- `backend/`：FastAPI 后端与核心服务。
+- `frontend/`：Next.js 最小前端。
+- `backend/tests/`：回归测试。
+- `docs/`：API 和架构文档。
+
+后续会继续新增：
+
+- `nginx/`：生产部署代理配置。
+
+## 13. 当前开发说明
+
+当前阶段的开发约束如下：
+
+- 新增代码优先补详细中文注释，尤其是核心服务、接口解析和配置逻辑。
+- CLI 和 Web 必须共用同一套核心 diff 能力，避免维护两套实现。
+- HTML 报告继续保持单文件输出，便于本地打开、分享和后续由前端直接嵌入。
+
+## 14. 补充文档
+
+- API 说明见 [docs/API.md](docs/API.md)
+- 架构说明见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+
+## 15. 复现步骤
 
 如果你后续想完整复现一次结果，可以按下面流程执行。
 
@@ -253,7 +394,7 @@ open reports/right_diff_report4.html
 python textdiff_ocr.py path/to/reference.md path/to/ocr.md -o reports/custom_report.html
 ```
 
-## 10. 如何阅读 HTML 报告
+## 16. 如何阅读 HTML 报告
 
 建议按这个顺序阅读：
 
@@ -263,17 +404,17 @@ python textdiff_ocr.py path/to/reference.md path/to/ocr.md -o reports/custom_rep
 
 如果你在分析某类 OCR 系统的稳定性，建议把多次实验报告都保存下来，便于横向比较不同模型、不同图片质量或不同预处理策略下的结果。
 
-## 11. 代码学习路径
+## 17. 代码学习路径
 
 如果你是为了学习这个脚本，建议按下面顺序阅读源码：
 
-1. 从 [main](textdiff_ocr.py#L307) 开始，看整体执行顺序。
-2. 再看 [parse_args](textdiff_ocr.py#L278)，理解脚本支持哪些控制参数。
-3. 阅读 [read_and_strip_markdown](textdiff_ocr.py#L74) 和 [preprocess_text](textdiff_ocr.py#L95)，理解“先清洗再比较”的思路。
-4. 阅读 [compute_diff](textdiff_ocr.py#L110)，理解错误计数是如何从 opcode 推出来的。
-5. 最后看 [generate_html_report](textdiff_ocr.py#L180)，理解报告页面如何拼装。
+1. 从 [textdiff_ocr.py](textdiff_ocr.py) 开始，看 CLI 如何把参数转交给后端服务层。
+2. 再看 [backend/core/diff_service.py](backend/core/diff_service.py)，理解 Markdown 清洗、预处理、diff 统计和 HTML 报告生成。
+3. 阅读 [backend/core/models.py](backend/core/models.py)，理解核心层返回的数据结构。
+4. 阅读 [backend/api/routes.py](backend/api/routes.py)，理解文本输入和文件上传如何汇聚到同一个接口。
+5. 最后看 [backend/app.py](backend/app.py)，理解 FastAPI 应用、CORS 和静态报告挂载方式。
 
-## 12. 设计取舍
+## 18. 设计取舍
 
 这个脚本采用了几个明确的设计选择：
 
@@ -285,7 +426,7 @@ python textdiff_ocr.py path/to/reference.md path/to/ocr.md -o reports/custom_rep
 
 这些选择让脚本更偏向“实用分析工具”，而不是“通用文本评测框架”。
 
-## 13. 常见问题
+## 19. 常见问题
 
 ### 为什么生成的文本没有空格和换行？
 
@@ -303,7 +444,7 @@ python textdiff_ocr.py path/to/reference.md path/to/ocr.md -o reports/custom_rep
 
 可以。只要是 UTF-8 文本并且路径正确，脚本都能读取。只是它的预处理逻辑是按照 Markdown 语法设计的。
 
-## 14. 后续可扩展方向
+## 20. 后续可扩展方向
 
 如果你后面要继续扩展这个项目，可以考虑：
 
@@ -314,7 +455,7 @@ python textdiff_ocr.py path/to/reference.md path/to/ocr.md -o reports/custom_rep
 - 增加是否保留空白字符的开关。
 - 增加更细粒度的 Markdown 清洗策略配置。
 
-## 15. 当前已验证命令
+## 21. 当前已验证命令
 
 本工作区里已经成功运行过类似下面的命令，并生成 HTML 报告：
 

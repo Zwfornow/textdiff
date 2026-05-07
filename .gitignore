@@ -1,3 +1,8 @@
 md_summary/
 reports/
 .DS_Store
+backend/reports/*.html
+frontend/.next/
+frontend/node_modules/
+frontend/out/
+*.pyc

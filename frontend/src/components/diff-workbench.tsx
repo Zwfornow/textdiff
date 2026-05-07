@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { fetchReportList, submitTextDiff } from "@/lib/api";
 import type { DiffResponse, PreprocessOptions, ReportListItem } from "@/lib/types";
@@ -36,6 +36,39 @@ function parseReportDisplayName(filename: string): string {
   return withoutPrefix.replace(/_/g, " ") || base;
 }
 
+/** 每行像素高度 = lined-textarea 的 font-size × line-height，必须与 CSS 保持一致 */
+const LINE_HEIGHT_PX = 16 * 1.7; // 27.2px
+/** lined-textarea 的 padding-top，与 CSS 保持一致 */
+const TEXTAREA_PADDING_TOP = 16;
+
+/** 文本块（MD 中连续引用行合并为一个块） */
+type Block = {
+  index: number;     // blocks 数组中的下标
+  blockNum: number;  // 显示的编号（1-indexed）
+  startLine: number; // 对应文本的起始物理行（0-indexed）
+  lineCount: number; // 跨越的物理行数
+};
+
+/** 将文本解析为块列表；连续 > 开头的行合并为一个引用块 */
+function parseBlocks(text: string): Block[] {
+  // 统一行尾（兼容 Windows CRLF / 旧 Mac CR）
+  const normalized = text ? text.replace(/\r\n|\r/g, "\n") : "";
+  const lines = normalized.split("\n");
+  const blocks: Block[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    if (lines[i].trimStart().startsWith(">")) {
+      const start = i;
+      while (i < lines.length && lines[i].trimStart().startsWith(">")) i++;
+      blocks.push({ index: blocks.length, blockNum: blocks.length + 1, startLine: start, lineCount: i - start });
+    } else {
+      blocks.push({ index: blocks.length, blockNum: blocks.length + 1, startLine: i, lineCount: 1 });
+      i++;
+    }
+  }
+  return blocks.length > 0 ? blocks : [{ index: 0, blockNum: 1, startLine: 0, lineCount: 1 }];
+}
+
 /** 带行号的文本框 */
 function LineNumberedTextarea({
   value,
@@ -47,49 +80,94 @@ function LineNumberedTextarea({
   placeholder?: string;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const lineNumRef = useRef<HTMLDivElement>(null);
-  const [activeLine, setActiveLine] = useState<number | null>(null);
-  const lineCount = value ? value.split("\n").length : 1;
+  // 行号内容层（通过 translateY 跟随 textarea 滚动，不独立滚动）
+  const lineNumInnerRef = useRef<HTMLDivElement>(null);
+  // 高亮遮罩（直接操作 DOM，避免每帧 setState 引起重渲染）
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const [activeBlockIndex, setActiveBlockIndex] = useState<number | null>(null);
+  // 保存当前激活块的引用，供滚动回调直接读取（无闭包过期问题）
+  const activeBlockRef = useRef<Block | null>(null);
 
-  // 行高常量，必须与 CSS .lined-textarea 的 font-size × line-height 保持一致
-  const LINE_HEIGHT_PX = 16 * 1.7; // 27.2px
+  const blocks = useMemo(() => parseBlocks(value), [value]);
 
-  function syncScroll() {
-    if (lineNumRef.current && textareaRef.current) {
-      lineNumRef.current.scrollTop = textareaRef.current.scrollTop;
+  // 激活块或块列表变化时：同步 ref、重新定位遮罩
+  useEffect(() => {
+    if (activeBlockIndex !== null && activeBlockIndex < blocks.length) {
+      const block = blocks[activeBlockIndex];
+      activeBlockRef.current = block;
+      positionOverlay(textareaRef.current?.scrollTop ?? 0, block);
+    } else if (activeBlockIndex !== null) {
+      // 块数减少，索引越界 → 重置
+      setActiveBlockIndex(null);
+      activeBlockRef.current = null;
+      positionOverlay(0, null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps — blocks 已包含所有派生状态，无需将 positionOverlay 加入依赖
+  }, [activeBlockIndex, blocks]);
+
+  /** 直接操作 DOM 定位高亮遮罩 */
+  function positionOverlay(scrollTop: number, block: Block | null) {
+    const overlay = overlayRef.current;
+    if (!overlay) return;
+    if (block) {
+      overlay.style.display = "block";
+      overlay.style.top = `${TEXTAREA_PADDING_TOP + block.startLine * LINE_HEIGHT_PX - scrollTop}px`;
+      overlay.style.height = `${block.lineCount * LINE_HEIGHT_PX}px`;
+    } else {
+      overlay.style.display = "none";
     }
   }
 
-  function handleLineClick(lineNum: number) {
-    setActiveLine(lineNum);
+  /** textarea 滚动时：平移行号内容层 + 更新遮罩位置（不经过 React 状态） */
+  function syncScroll() {
     const ta = textareaRef.current;
     if (!ta) return;
-    const paddingTop = 16; // .lined-textarea padding-top
-    const targetTop = paddingTop + (lineNum - 1) * LINE_HEIGHT_PX;
+    if (lineNumInnerRef.current) {
+      lineNumInnerRef.current.style.transform = `translateY(${-ta.scrollTop}px)`;
+    }
+    positionOverlay(ta.scrollTop, activeBlockRef.current);
+  }
+
+  function handleBlockClick(block: Block) {
+    setActiveBlockIndex(block.index);
+    activeBlockRef.current = block;
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const targetTop = TEXTAREA_PADDING_TOP + block.startLine * LINE_HEIGHT_PX;
     ta.scrollTop = Math.max(0, targetTop - ta.clientHeight / 3);
+    // scrollTop 变化时浏览器会触发 onScroll，但若值未变则手动同步
+    syncScroll();
   }
 
   return (
     <div className="lined-textarea-wrapper">
-      <div ref={lineNumRef} className="line-numbers">
-        {Array.from({ length: lineCount }, (_, i) => (
-          <div
-            key={i + 1}
-            className={`line-num-item${activeLine === i + 1 ? " line-num-active" : ""}`}
-            onClick={() => handleLineClick(i + 1)}
-          >
-            {i + 1}
-          </div>
-        ))}
+      {/* line-numbers 本身 overflow:hidden，不独立滚动 */}
+      <div className="line-numbers" aria-hidden="true">
+        <div ref={lineNumInnerRef} className="line-numbers-inner">
+          {blocks.map((block) => (
+            <div
+              key={block.blockNum}
+              className={`line-num-item${activeBlockIndex === block.index ? " line-num-active" : ""}`}
+              style={{ height: block.lineCount * LINE_HEIGHT_PX }}
+              onClick={() => handleBlockClick(block)}
+            >
+              {block.blockNum}
+            </div>
+          ))}
+        </div>
       </div>
-      <textarea
-        ref={textareaRef}
-        className="lined-textarea"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onScroll={syncScroll}
-        placeholder={placeholder}
-      />
+      <div className="lined-textarea-area">
+        {/* 遮罩初始隐藏，由 positionOverlay 直接控制 */}
+        <div ref={overlayRef} className="line-highlight-overlay" style={{ display: "none" }} />
+        <textarea
+          ref={textareaRef}
+          className="lined-textarea"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onScroll={syncScroll}
+          placeholder={placeholder}
+        />
+      </div>
     </div>
   );
 }
@@ -142,22 +220,28 @@ export function DiffWorkbench() {
     setErrorMessage("");
     setIsSubmitting(true);
 
-    // 报告文件名组件：文件来源用文件名，文本来源用前5字符
+    // 报告文件名组件：文件来源用文件名，文本来源取第一个完整词（限20字）
+    const firstWord = (text: string) =>
+      text
+        .replace(/^[#*>`\-\s]+/, "")
+        .trim()
+        .split(/\s+/)[0]
+        ?.slice(0, 20) || "文本";
     const referenceReportName =
       referenceSource.type === "file"
         ? referenceSource.stem
-        : referenceText.trim().slice(0, 5) || "参考文本";
+        : firstWord(referenceText) || "参考文本";
     const ocrReportName =
       ocrSource.type === "file"
         ? ocrSource.stem
-        : ocrText.trim().slice(0, 5) || "OCR文本";
+        : firstWord(ocrText) || "对比文本";
 
     try {
       const nextResult = await submitTextDiff({
         reference: referenceText,
         ocr: ocrText,
-        referenceLabel: "参考文本",
-        ocrLabel: "OCR文本",
+        referenceLabel: referenceSource.type === "file" ? referenceSource.stem : "参考文本",
+        ocrLabel: ocrSource.type === "file" ? ocrSource.stem : "对比文本",
         referenceReportName,
         ocrReportName,
         options,
@@ -192,7 +276,8 @@ export function DiffWorkbench() {
       setConfirmState({ target, newContent: content, filename: file.name });
     } else {
       setter(content);
-      const stem = file.name.replace(/\.[^.]+$/, "");
+      // const stem = file.name.replace(/\.[^.]+$/, "");
+      const stem = file.name;
       if (target === "reference") setReferenceSource({ type: "file", stem });
       else setOcrSource({ type: "file", stem });
     }
@@ -216,7 +301,8 @@ export function DiffWorkbench() {
   /** 确认替换文本框内容 */
   function confirmReplace() {
     if (!confirmState) return;
-    const stem = confirmState.filename.replace(/\.[^.]+$/, "");
+    // const stem = confirmState.filename.replace(/\.[^.]+$/, "");
+    const stem = confirmState.filename;
     if (confirmState.target === "reference") {
       setReferenceText(confirmState.newContent);
       setReferenceSource({ type: "file", stem });
@@ -274,19 +360,21 @@ export function DiffWorkbench() {
 
       {/* ───── 主内容 ───── */}
       <main className="page-shell">
-        {/* 侧边栏打开按钮 */}
-        <button
-          className="sidebar-toggle"
-          onClick={() => setSidebarOpen((v) => !v)}
-          type="button"
-          aria-label="查看历史报告"
-        >
-          历史报告
-        </button>
-
         <section className="hero">
-          <p className="eyebrow">可视化文本对比工具</p>
-          <h1>TextDiff</h1>
+          <div className="hero-top">
+            <div>
+              <p className="eyebrow">可视化文本对比工具</p>
+              <h1>TextDiff</h1>
+            </div>
+            <button
+              className="sidebar-toggle"
+              onClick={() => setSidebarOpen((v) => !v)}
+              type="button"
+              aria-label="查看历史报告"
+            >
+              历史报告
+            </button>
+          </div>
           <p className="hero-copy">
             TextDiff 帮你生成详细的文本差异报告。支持直接粘贴文本或上传文件，并提供多种预处理选项。
           </p>
@@ -315,7 +403,7 @@ export function DiffWorkbench() {
                   checked={options.diff_mode === "text_and_format"}
                   onChange={() => handleDiffModeChange("text_and_format")}
                 />
-                对比文本与格式（逐行）
+                逐行对比文本
               </label>
             </div>
 

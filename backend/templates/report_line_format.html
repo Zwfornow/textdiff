@@ -1,0 +1,26 @@
+{% extends "_base_report.html" %} {% block title %}{{ ref_label }} vs {{
+ocr_label }}{% endblock %} {% block heading %}文本对比报告（逐行）{% endblock %}
+{% block extra_css %} .line-table { width: 100%; border-collapse: collapse;
+font-size: 15px; } .line-table th, .line-table td { border: 1px solid
+var(--border); padding: 6px 10px; vertical-align: top; } .line-table th {
+background: #efe5d5; text-align: left; } .ln { width: 40px; min-width: 40px;
+text-align: right; color: var(--muted); font-size: 12px; user-select: none;
+background: rgba(240,232,218,0.5); } .lc { white-space: pre-wrap; word-break:
+break-all; line-height: 1.7; } .line-blank td { background: rgba(216, 204, 184,
+0.18); height: 8px; padding: 0; } .line-changed td.lc { background:
+rgba(255,253,240,0.7); } @media (max-width: 900px) { body { padding: 16px; } }
+{% endblock %} {% block main_content %}
+<table class="line-table">
+  <thead>
+    <tr>
+      <th class="ln">#</th>
+      <th>参考文本</th>
+      <th class="ln">#</th>
+      <th>对比文本</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{ line_rows }}
+  </tbody>
+</table>
+{% endblock %}

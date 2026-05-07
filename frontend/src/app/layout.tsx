@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Text Diff Workbench",
+  title: "文本对比工作台",
   description: "输入文本或上传文件，生成文本差异报告。",
 };
 

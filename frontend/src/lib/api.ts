@@ -20,7 +20,7 @@ type SubmitFileDiffArgs = {
 
 export async function submitTextDiff(args: SubmitTextDiffArgs): Promise<DiffResponse> {
   if (!args.reference.trim() || !args.ocr.trim()) {
-    throw new Error("文本输入不能为空。请先填写参考文本和 OCR 文本。");
+    throw new Error("文本输入不能为空。请先填写参考文本和对比文本");
   }
 
   const response = await fetch(`${API_BASE_URL}/api/diff`, {
@@ -44,7 +44,7 @@ export async function submitTextDiff(args: SubmitTextDiffArgs): Promise<DiffResp
 
 export async function submitFileDiff(args: SubmitFileDiffArgs): Promise<DiffResponse> {
   if (!args.referenceFile || !args.ocrFile) {
-    throw new Error("文件上传模式下必须同时选择参考文件和 OCR 文件。");
+    throw new Error("文件上传模式下必须同时上传参考文件和对比文件");
   }
 
   const formData = new FormData();
@@ -72,7 +72,7 @@ async function parseResponse(response: Response): Promise<DiffResponse> {
 export async function fetchReportList(): Promise<ReportListItem[]> {
   const response = await fetch(`${API_BASE_URL}/api/reports`);
   if (!response.ok) {
-    throw new Error("获取报告列表失败。");
+    throw new Error("获取报告列表失败");
   }
   const data = (await response.json()) as { reports: ReportListItem[] };
   return data.reports;
